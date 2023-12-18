@@ -1,0 +1,1232 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Metadata:
+    Generator: "former2"
+Description: ""
+Resources:
+    IAMInstanceProfile:
+        Type: "AWS::IAM::InstanceProfile"
+        Properties:
+            Path: "/"
+            InstanceProfileName: !Ref IAMRole9
+            Roles: 
+              - !Ref IAMRole9
+    
+    MyS3Bucket:
+        Type: 'AWS::S3::Bucket'
+        Properties:
+            BucketName: canvasimages409
+            AccessControl: Private
+
+    EC2Instance:
+        Type: "AWS::EC2::Instance"
+        Properties:
+            ImageId: "ami-0fa1ca9559f1892ec"
+            InstanceType: "t2.micro"
+            KeyName: "ec2"
+            AvailabilityZone: !Sub "us-east-1c"
+            Tenancy: "default"
+            SubnetId: "subnet-08b97dd38ef142320"
+            EbsOptimized: false
+            SecurityGroupIds: 
+              - "sg-054c3bbce1f5ffb7e"
+            SourceDestCheck: true
+            BlockDeviceMappings: 
+              - 
+                DeviceName: "/dev/xvda"
+                Ebs: 
+                    Encrypted: false
+                    VolumeSize: 8
+                    SnapshotId: "snap-06e0f1779b56a4575"
+                    VolumeType: "gp2"
+                    DeleteOnTermination: true
+            IamInstanceProfile: !Ref IAMRole9
+            HibernationOptions: 
+                Configured: false
+            EnclaveOptions: 
+                Enabled: false
+
+    EC2Instance2:
+        Type: "AWS::EC2::Instance"
+        Properties:
+            ImageId: "ami-0fa1ca9559f1892ec"
+            InstanceType: "t2.micro"
+            KeyName: "ec2"
+            AvailabilityZone: !Sub "us-east-1a"
+            Tenancy: "default"
+            SubnetId: "subnet-0a2ac5a73aac252e1"
+            EbsOptimized: false
+            SecurityGroupIds: 
+              - "sg-054c3bbce1f5ffb7e"
+            SourceDestCheck: true
+            BlockDeviceMappings: 
+              - 
+                DeviceName: "/dev/xvda"
+                Ebs: 
+                    Encrypted: false
+                    VolumeSize: 8
+                    SnapshotId: "snap-06e0f1779b56a4575"
+                    VolumeType: "gp2"
+                    DeleteOnTermination: true
+            IamInstanceProfile: !Ref IAMRole9
+            HibernationOptions: 
+                Configured: false
+            EnclaveOptions: 
+                Enabled: false
+
+    LambdaFunction:
+        Type: "AWS::Lambda::Function"
+        Properties:
+            Description: ""
+            FunctionName: "updateCanvas"
+            Handler: "lambda_function.lambda_handler"
+            Architectures: 
+              - "x86_64"
+            MemorySize: 128
+            Role: !GetAtt IAMRole12.Arn
+            Runtime: "python3.11"
+            Timeout: 3
+            TracingConfig: 
+                Mode: "PassThrough"
+            EphemeralStorage: 
+                Size: 512
+            Code:
+                ZipFile: >
+                    import json
+                    import boto3
+                    import urllib3
+                    client = boto3.client('apigatewaymanagementapi', endpoint_url="https://tupd3rpfel.execute-api.us-east-1.amazonaws.com/production")
+                    sqs = boto3.client('sqs')
+
+                    def lambda_handler(event, context):
+                        # TODO implement
+                        print(event)
+                        print(context)
+                        
+                        #Extract connectionId from incoming event
+                        connectionId = event["requestContext"]["connectionId"]
+                        body_dict = json.loads(event['body'])
+                        body_dict['clientID'] = connectionId
+                        
+                        sqs = boto3.client('sqs')
+                        sqs.send_message(
+                            QueueUrl="https://sqs.us-east-2.amazonaws.com/254618925434/canvasUpdates.fifo",
+                            MessageBody=json.dumps(body_dict),
+                            MessageGroupId="updates"
+                        )
+                        
+                        responseObject = {}
+                        responseObject['statusCode'] = 200
+                        responseObject['headers'] = {}
+                        responseObject['headers']['Content-Type'] = 'application/json'
+                        responseObject['body'] = json.dumps(f'sent update to sqs')
+                        
+                        
+                        
+                        return responseObject
+
+    LambdaFunction2:
+        Type: "AWS::Lambda::Function"
+        Properties:
+            Description: ""
+            FunctionName: "connect"
+            Handler: "lambda_function.lambda_handler"
+            Architectures: 
+              - "x86_64"
+            MemorySize: 128
+            Role: !GetAtt IAMRole8.Arn
+            Runtime: "python3.11"
+            Timeout: 3
+            TracingConfig: 
+                Mode: "PassThrough"
+            EphemeralStorage: 
+                Size: 512
+            Code:
+                ZipFile: >
+                    import json
+                    import boto3
+
+                    html="""
+                    <!doctype html>
+                    <html lang="en"> 
+                        <head>
+                            <meta charset="UTF-8" />
+                                    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+                                    <meta http-equiv="Pragma" content="no-cache" />
+                                    <meta http-equiv="Expires" content="0" />
+
+                            <title>r/place clone</title>
+
+                            <script src="jquery-3.7.1.min.js"></script>
+                            <script type="text/javascript">
+                        
+                                var socket;
+                                var version;
+
+                                $(function(){
+                                    // socket = new WebSocket("ws://cslinux.utm.utoronto.ca:8001");
+                                    // socket = new WebSocket("ws://localhost:8001");
+                                    socket = new WebSocket("wss://sjdud7kfbc.execute-api.us-east-1.amazonaws.com/production/");
+                                    socket.onopen = function (event) {
+                                        $('#sendButton').removeAttr('disabled');
+                                        console.log("connected");
+                                        var data = JSON.parse(event.data);
+                                    };
+                                    socket.onclose = function (event) {
+                                        alert("closed code:" + event.code + " reason:" +event.reason + " wasClean:"+event.wasClean);
+                                    };
+                                    socket.onmessage = function (event) {
+                                        document.getElementById("myIMG").src = "https://d1zgigayd72syg.cloudfront.net/images/canvas.png"
+                                    }
+
+                                    $('#setForm').submit(function( event ) {
+                                        var o = { 'x': $('#x').val(), 
+                                            'y': $('#y').val(), 
+                                            'color':$('#color').val()};
+                                        socket.send(JSON.stringify(o));
+                                        event.preventDefault();
+                                    });
+                                    
+                                });
+                            </script>
+                            <style>
+                                            body {
+                                                    text-align: center;
+                                                    align: center;
+                                                    overflow: auto;
+                                                    margin: 0px;
+                                                    padding: 0px;
+                                            }
+                                            img {
+                                                border: 1px solid black;
+                                                }
+                                            input[type=number]{ width: 3em; }
+                                    </style>
+                        </head>
+                        <body>
+                            <h1>r/place clone</h1>
+                            <img src='https://d1zgigayd72syg.cloudfront.net/images/canvas.png"
+                            alt="canvas" id="myIMG"/>
+                            <form id="setForm">
+                                            (<input type='number' id="x" placeholder="x" min="0" max="250">,
+                                            <input type="number" id="y" placeholder="y" min="0" max="250">)
+                                            &nbsp; &nbsp; &nbsp;
+                                            (<select id="color" name="color">
+                                                <option value="white">white</option>
+                                                <option value="red">red</option>
+                                                <option value="lime">lime</option>
+                                                <option value="blue">blue</option>
+                                                <option value="yellow">yellow</option>
+                                                <option value="magenta">magenta</option>
+                                                <option value="cyan">cyan</option>
+                                                <option value="maroon">maroon</option>
+                                                <option value="green">green</option>
+                                                <option value="navy">navy</option>
+                                                <option value="olive">olive</option>
+                                                <option value="purple">purple</option>
+                                                <option value="teal">teal</option>
+                                                <option value="silver">silver</option>
+                                                <option value="gray">gray</option>
+                                                <option value="black">black</option>
+                                            </select>)
+                                            &nbsp; &nbsp; &nbsp;
+                                            <input type="submit" name="set" value="set"/>
+                                    </form>
+                        </body>
+                    </html>
+                    """
+
+                    dynamodb_client = boto3.resource('dynamodb', region_name='us-east-1')
+                    users = dynamodb_client.Table("connected_users")
+                    def lambda_handler(event, context):
+                        # TODO implement
+                        print(event)
+                        print(context)
+                        users.put_item(Item={"connectionID": event["requestContext"]["connectionId"]})
+                        return {
+                            'statusCode': 200,
+                            'body': json.dumps('Hello!')
+                        }
+
+    LambdaFunction3:
+        Type: "AWS::Lambda::Function"
+        Properties:
+            Description: ""
+            FunctionName: "broadcast"
+            Handler: "lambda_function.lambda_handler"
+            Architectures: 
+              - "x86_64"
+            MemorySize: 128
+            Role: !GetAtt IAMRole6.Arn
+            Runtime: "python3.11"
+            Timeout: 3
+            TracingConfig: 
+                Mode: "PassThrough"
+            EphemeralStorage: 
+                Size: 512
+            Code:
+                ZipFile: >
+                    import json
+                    import boto3
+                    from concurrent.futures import ThreadPoolExecutor
+
+                    dynamodb_client = boto3.resource('dynamodb', region_name='us-east-1')
+                    users = dynamodb_client.Table("connected_users")
+                    # client = boto3.client('apigatewaymanagementapi', endpoint_url="https://tupd3rpfel.execute-api.us-east-1.amazonaws.com/production")
+
+                    def lambda_handler(event, context):
+                        client = boto3.client('apigatewaymanagementapi', endpoint_url="https://sjdud7kfbc.execute-api.us-east-1.amazonaws.com/production/")
+                        # connected_users = users.scan()['Items']
+                        print(event)
+                        connected_users = event["batch"]
+                        time = event["eventTime"]
+                        print(time)
+                        print(connected_users)
+                        # def send_message(connection_user):
+                        for user in connected_users:
+                            print(user['connectionID'])
+                            client.post_to_connection(
+                                ConnectionId=user['connectionID'],
+                                Data=json.dumps({'message': time})
+                            )
+
+                        return {
+                            'statusCode': 200,
+                            'body': 'Messages sent successfully'
+                        }
+
+    LambdaFunction4:
+        Type: "AWS::Lambda::Function"
+        Properties:
+            Description: ""
+            FunctionName: !Sub "disconnect"
+            Handler: "lambda_function.lambda_handler"
+            Architectures: 
+              - "x86_64"
+            MemorySize: 128
+            Role: !GetAtt IAMRole10.Arn
+            Runtime: "python3.11"
+            Timeout: 3
+            TracingConfig: 
+                Mode: "PassThrough"
+            EphemeralStorage: 
+                Size: 512
+            Code:
+                ZipFile: >
+                    import json
+                    import boto3
+
+                    dynamodb_client = boto3.resource('dynamodb', region_name='us-east-1')
+                    users = dynamodb_client.Table("connected_users")
+
+                    def lambda_handler(event, context):
+                        print(event)
+                        print(context)
+                        connectionID = event["requestContext"]["connectionId"]
+                        try:
+                            users.delete_item(Key={"connectionID": connectionID})
+                            print("Item deleted successfully")
+                        except Exception as e:
+                            print(f"Error deleting item: {e}")
+                        
+                        return {
+                            'statusCode': 200,
+                            'body': json.dumps('Goodbye')
+                        }
+                    
+
+    LambdaFunction5:
+        Type: "AWS::Lambda::Function"
+        Properties:
+            Description: ""
+            FunctionName: "batcher"
+            Handler: "lambda_function.lambda_handler"
+            Architectures: 
+              - "x86_64"
+            MemorySize: 128
+            Role: !GetAtt IAMRole4.Arn
+            Runtime: "python3.11"
+            Timeout: 3
+            TracingConfig: 
+                Mode: "PassThrough"
+            EphemeralStorage: 
+                Size: 512
+            Code:
+                ZipFile: >
+                    "import json
+                    import boto3
+
+                    dynamodb_client = boto3.resource('dynamodb', region_name='us-east-1')
+                    connected_users = dynamodb_client.Table("connected_users")
+                    lambda_client = boto3.client('lambda')
+
+                    def lambda_handler(event, context):
+                        # TODO implement
+                        time = event["Records"][0]["eventTime"]
+                        users = connected_users.scan()['Items']
+                        print(users)
+                        for batch in chunks(users, 100):
+                                invoke_separate_lambda_function(batch, time)
+                        
+                        return {
+                            'statusCode': 200,
+                            'body': json.dumps('Hello from Lambda!')
+                        }
+                    def invoke_separate_lambda_function(batch, time):
+                        try:
+                            # Specify the ARN of the other Lambda function to invoke
+                            lambda_function_arn = 'arn:aws:lambda:us-east-1:254618925434:function:broadcast'
+
+                            # Prepare the payload to send to the other Lambda function
+                            payload = {
+                                'batch': batch,
+                                'eventTime': time
+                            }
+
+                            # Invoke the other Lambda function
+                            response = lambda_client.invoke(
+                                FunctionName=lambda_function_arn,
+                                InvocationType='Event',  # Asynchronous invocation
+                                Payload=json.dumps(payload)
+                            )
+
+                            print(f"Invoked Lambda function with response: {response}")
+                        except Exception as e:
+                            print(e)
+                            raise Exception('Error invoking separate Lambda function.')
+
+                    def chunks(lst, chunk_size):
+                        for i in range(0, len(lst), chunk_size):
+                            yield lst[i:i + chunk_size]
+
+    LambdaPermission:
+        Type: "AWS::Lambda::Permission"
+        Properties:
+            Action: "lambda:InvokeFunction"
+            FunctionName: !GetAtt LambdaFunction.Arn
+            Principal: "apigateway.amazonaws.com"
+            SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:a43z39kb45/*/update_canvas"
+
+    LambdaPermission2:
+        Type: "AWS::Lambda::Permission"
+        Properties:
+            Action: "lambda:InvokeFunction"
+            FunctionName: !GetAtt LambdaFunction.Arn
+            Principal: "apigateway.amazonaws.com"
+            SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayV2Api}/*/update_canvas"
+
+    LambdaPermission3:
+        Type: "AWS::Lambda::Permission"
+        Properties:
+            Action: "lambda:InvokeFunction"
+            FunctionName: !GetAtt LambdaFunction2.Arn
+            Principal: "apigateway.amazonaws.com"
+            SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:a43z39kb45/*/$${LambdaFunction2}"
+
+    LambdaPermission4:
+        Type: "AWS::Lambda::Permission"
+        Properties:
+            Action: "lambda:InvokeFunction"
+            FunctionName: !GetAtt LambdaFunction2.Arn
+            Principal: "apigateway.amazonaws.com"
+            SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayV2Api}/*/$${LambdaFunction2}"
+
+    LambdaPermission5:
+        Type: "AWS::Lambda::Permission"
+        Properties:
+            Action: "lambda:InvokeFunctionUrl"
+            FunctionName: !GetAtt LambdaFunction2.Arn
+            Principal: "apigateway.amazonaws.com"
+
+    LambdaPermission6:
+        Type: "AWS::Lambda::Permission"
+        Properties:
+            Action: "lambda:InvokeFunction"
+            FunctionName: !GetAtt LambdaFunction2.Arn
+            Principal: "apigateway.amazonaws.com"
+            SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:a43z39kb45/*/$dis${LambdaFunction2}"
+
+    LambdaPermission7:
+        Type: "AWS::Lambda::Permission"
+        Properties:
+            Action: "lambda:InvokeFunction"
+            FunctionName: !GetAtt LambdaFunction2.Arn
+            Principal: "apigateway.amazonaws.com"
+            SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayV2Api}/*/$dis${LambdaFunction2}"
+
+    LambdaPermission8:
+        Type: "AWS::Lambda::Permission"
+        Properties:
+            Action: "lambda:InvokeFunction"
+            FunctionName: !GetAtt LambdaFunction5.Arn
+            Principal: "s3.amazonaws.com"
+            SourceArn: "arn:aws:s3:::canvasimages409"
+
+    DynamoDBTable:
+        Type: "AWS::DynamoDB::Table"
+        Properties:
+            AttributeDefinitions: 
+              - 
+                AttributeName: !Sub "${LambdaFunction2}ionID"
+                AttributeType: "S"
+            TableName: !Sub "${LambdaFunction2}ed_users"
+            KeySchema: 
+              - 
+                AttributeName: !Sub "${LambdaFunction2}ionID"
+                KeyType: "HASH"
+            ProvisionedThroughput: 
+                ReadCapacityUnits: 15
+                WriteCapacityUnits: 10
+
+    DynamoDBTable2:
+        Type: "AWS::DynamoDB::Table"
+        Properties:
+            AttributeDefinitions: 
+              - 
+                AttributeName: "pixel"
+                AttributeType: "S"
+            TableName: "canvas_pixels"
+            KeySchema: 
+              - 
+                AttributeName: "pixel"
+                KeyType: "HASH"
+            ProvisionedThroughput: 
+                ReadCapacityUnits: 10
+                WriteCapacityUnits: 15
+
+    CloudFrontDistribution:
+        Type: "AWS::CloudFront::Distribution"
+        Properties:
+            DistributionConfig: 
+                Origins: 
+                  - 
+                    ConnectionAttempts: 3
+                    ConnectionTimeout: 10
+                    DomainName: !Sub "canvasimages409.s3.${AWS::Region}.amazonaws.com"
+                    Id: !Sub "canvasimages409.s3.${AWS::Region}.amazonaws.com"
+                    OriginPath: ""
+                    S3OriginConfig: 
+                        OriginAccessIdentity: ""
+                DefaultCacheBehavior: 
+                    AllowedMethods: 
+                      - "HEAD"
+                      - "GET"
+                    CachedMethods: 
+                      - "HEAD"
+                      - "GET"
+                    Compress: false
+                    DefaultTTL: 30
+                    ForwardedValues: 
+                        Cookies: 
+                            Forward: "none"
+                        QueryString: true
+                    MaxTTL: 31536000
+                    MinTTL: 0
+                    SmoothStreaming: false
+                    TargetOriginId: !Sub "canvasimages409.s3.${AWS::Region}.amazonaws.com"
+                    ViewerProtocolPolicy: "redirect-to-https"
+                Comment: ""
+                PriceClass: "PriceClass_All"
+                Enabled: true
+                ViewerCertificate: 
+                    CloudFrontDefaultCertificate: true
+                    MinimumProtocolVersion: "TLSv1"
+                Restrictions: 
+                    GeoRestriction: 
+                        RestrictionType: "none"
+                HttpVersion: "http2"
+                DefaultRootObject: ""
+                IPV6Enabled: true
+
+    CloudFrontOriginAccessControl:
+        Type: "AWS::CloudFront::OriginAccessControl"
+        Properties:
+            OriginAccessControlConfig: 
+                Name: !Sub "canvasimages409.s3.${AWS::Region}.amazonaws.com"
+                OriginAccessControlOriginType: "s3"
+                SigningBehavior: "always"
+                SigningProtocol: "sigv4"
+
+    EC2SecurityGroup:
+        Type: "AWS::EC2::SecurityGroup"
+        Properties:
+            GroupDescription: "Allow ssh access to developers"
+            GroupName: "emptyGroup"
+            VpcId: "vpc-01d4816f0a39ea0b0"
+            SecurityGroupIngress: 
+              - 
+                SourceSecurityGroupId: "sg-09c92b3392d60d9ac"
+                SourceSecurityGroupOwnerId: !Ref AWS::AccountId
+                IpProtocol: "-1"
+              - 
+                CidrIp: "99.235.180.17/32"
+                FromPort: 22
+                IpProtocol: "tcp"
+                ToPort: 22
+              - 
+                CidrIp: "99.234.154.218/32"
+                FromPort: 22
+                IpProtocol: "tcp"
+                ToPort: 22
+            SecurityGroupEgress: 
+              - 
+                CidrIp: "0.0.0.0/0"
+                IpProtocol: "-1"
+
+    EC2SecurityGroup2:
+        Type: "AWS::EC2::SecurityGroup"
+        Properties:
+            GroupDescription: "launch-wizard-1 created 2023-12-03T21:58:54.469Z"
+            GroupName: "launch-wizard-1"
+            VpcId: "vpc-01d4816f0a39ea0b0"
+            SecurityGroupIngress: 
+              - 
+                CidrIp: "0.0.0.0/0"
+                FromPort: 80
+                IpProtocol: "tcp"
+                ToPort: 80
+              - 
+                CidrIp: "0.0.0.0/0"
+                FromPort: 22
+                IpProtocol: "tcp"
+                ToPort: 22
+            SecurityGroupEgress: 
+              - 
+                CidrIp: "0.0.0.0/0"
+                IpProtocol: "-1"
+
+    ElastiCacheSubnetGroup:
+        Type: "AWS::ElastiCache::SubnetGroup"
+        Properties:
+            Description: " "
+            CacheSubnetGroupName: "redis-subet"
+            SubnetIds: 
+              - "subnet-091401ec70944f5d5"
+              - "subnet-0426c2573cda8f764"
+              - "subnet-0a2ac5a73aac252e1"
+              - "subnet-049a62a10a9ad6099"
+              - "subnet-07e06aacf27ab44b5"
+              - "subnet-08b97dd38ef142320"
+
+    IAMUser:
+        Type: "AWS::IAM::User"
+        Properties:
+            Path: "/"
+            UserName: Asad
+            Groups: 
+              - !Ref IAMGroup
+            Tags: 
+              - 
+                Key: "AKIATWSDYPF5OYW3P7FH"
+                Value: !Sub "Signing into the ${IAMGroup} user on aws"
+
+    IAMUser2:
+        Type: "AWS::IAM::User"
+        Properties:
+            Path: "/"
+            UserName: "cloudformationGenerator"
+            Tags: 
+              - 
+                Key: "AKIATWSDYPF5BQPF7GEI"
+                Value: "access key for cloud formation generator"
+            ManagedPolicyArns: 
+              - "arn:aws:iam::aws:policy/ReadOnlyAccess"
+
+    IAMUser3:
+        Type: "AWS::IAM::User"
+        Properties:
+            Path: "/"
+            UserName: "Users"
+            Groups: 
+              - !Ref IAMGroup
+
+    IAMGroup:
+        Type: "AWS::IAM::Group"
+        Properties:
+            Path: "/"
+            GroupName: "Asad"
+            ManagedPolicyArns: 
+              - "arn:aws:iam::aws:policy/AdministratorAccess"
+
+    IAMRole:
+        Type: "AWS::IAM::Role"
+        Properties:
+            Path: "/service-role/"
+            RoleName: "addUserToRedis-role-0flog2gd"
+            AssumeRolePolicyDocument:
+                Version: "2012-10-17"
+                Statement:
+                  - Effect: "Allow"
+                    Principal:
+                        Service: "lambda.amazonaws.com"
+                    Action: "sts:AssumeRole"
+            MaxSessionDuration: 3600
+
+    IAMRole2:
+        Type: "AWS::IAM::Role"
+        Properties:
+            Path: "/"
+            RoleName: "Admin_role"
+            AssumeRolePolicyDocument:
+                Version: "2012-10-17"
+                Statement:
+                  - Sid: "Statement1"
+                    Effect: "Allow"
+                    Principal:
+                        Service:
+                          - ec2.amazonaws.com
+                    Action: "sts:AssumeRole"
+            MaxSessionDuration: 3600
+            ManagedPolicyArns: 
+            - "arn:aws:iam::aws:policy/AdministratorAccess"
+            Description: "Admin Role"
+
+    IAMRole3:
+        Type: "AWS::IAM::Role"
+        Properties:
+            Path: "/"
+            RoleName: "API_gateway_logging"
+            AssumeRolePolicyDocument:
+                Version: "2012-10-17"
+                Statement:
+                  - Effect: "Allow"
+                    Principal:
+                        Service: "apigateway.amazonaws.com"
+                    Action: "sts:AssumeRole"
+            MaxSessionDuration: 3600
+            ManagedPolicyArns: 
+            - "arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs"
+            Description: "Allows API Gateway to push logs to CloudWatch Logs."
+
+    IAMRole4:
+        Type: "AWS::IAM::Role"
+        Properties:
+            Path: "/service-role/"
+            RoleName: "batcher-role-0ebldj4h"
+            AssumeRolePolicyDocument: "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Principal\":{\"Service\":\"lambda.amazonaws.com\"},\"Action\":\"sts:AssumeRole\"}]}"
+            MaxSessionDuration: 3600
+            ManagedPolicyArns: 
+              - "arn:aws:iam::aws:policy/AmazonDynamoDBReadOnlyAccess"
+              - "arn:aws:iam::aws:policy/AWSLambda_FullAccess"
+
+    IAMRole5:
+        Type: "AWS::IAM::Role"
+        Properties:
+            Path: "/service-role/"
+            RoleName: !Sub "broadcast2-role-1miirpsr"
+            AssumeRolePolicyDocument: "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Principal\":{\"Service\":\"lambda.amazonaws.com\"},\"Action\":\"sts:AssumeRole\"}]}"
+            MaxSessionDuration: 3600
+
+    IAMRole6:
+        Type: "AWS::IAM::Role"
+        Properties:
+            Path: "/service-role/"
+            RoleName: "broadcast-role-hhpv0vhi"
+            AssumeRolePolicyDocument: "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Principal\":{\"Service\":\"lambda.amazonaws.com\"},\"Action\":\"sts:AssumeRole\"}]}"
+            MaxSessionDuration: 3600
+            ManagedPolicyArns: 
+              - "arn:aws:iam::aws:policy/AmazonVPCFullAccess"
+              - "arn:aws:iam::aws:policy/AmazonAPIGatewayInvokeFullAccess"
+              - "arn:aws:iam::aws:policy/AmazonDynamoDBReadOnlyAccess"
+
+    IAMRole7:
+        Type: "AWS::IAM::Role"
+        Properties:
+            Path: "/service-role/"
+            RoleName: !Sub "broadcast3-role-qc1xkgr8"
+            AssumeRolePolicyDocument: "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Principal\":{\"Service\":\"lambda.amazonaws.com\"},\"Action\":\"sts:AssumeRole\"}]}"
+            MaxSessionDuration: 3600
+            ManagedPolicyArns: 
+              - "arn:aws:iam::aws:policy/AmazonAPIGatewayInvokeFullAccess"
+              - "arn:aws:iam::aws:policy/AmazonDynamoDBReadOnlyAccess"
+
+    IAMRole8:
+        Type: "AWS::IAM::Role"
+        Properties:
+            Path: "/service-role/"
+            RoleName: "connect-role-0936kxo6"
+            AssumeRolePolicyDocument: "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Principal\":{\"Service\":\"lambda.amazonaws.com\"},\"Action\":\"sts:AssumeRole\"}]}"
+            MaxSessionDuration: 3600
+            ManagedPolicyArns: 
+              - "arn:aws:iam::aws:policy/AmazonAPIGatewayInvokeFullAccess"
+              - "arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess"
+
+    IAMRole9:
+        Type: "AWS::IAM::Role"
+        Properties:
+            Path: "/"
+            RoleName: "EC2_IAM_role"
+            AssumeRolePolicyDocument: "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Principal\":{\"Service\":\"ec2.amazonaws.com\"},\"Action\":\"sts:AssumeRole\"}]}"
+            MaxSessionDuration: 3600
+            ManagedPolicyArns: 
+              - "arn:aws:iam::aws:policy/AmazonSSMFullAccess"
+              - "arn:aws:iam::aws:policy/CloudWatchFullAccess"
+              - "arn:aws:iam::aws:policy/AmazonSQSFullAccess"
+              - "arn:aws:iam::aws:policy/AmazonElastiCacheFullAccess"
+              - "arn:aws:iam::aws:policy/AmazonAPIGatewayInvokeFullAccess"
+              - "arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess"
+              - "arn:aws:iam::aws:policy/AmazonS3FullAccess"
+              - "arn:aws:iam::aws:policy/AmazonCloudWatchRUMFullAccess"
+            Description: "Allows EC2 instances to call AWS services on your behalf."
+
+    IAMRole10:
+        Type: "AWS::IAM::Role"
+        Properties:
+            Path: "/service-role/"
+            RoleName: !Sub "disconnect-role-mnsg2zs0"
+            AssumeRolePolicyDocument: "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Principal\":{\"Service\":\"lambda.amazonaws.com\"},\"Action\":\"sts:AssumeRole\"}]}"
+            MaxSessionDuration: 3600
+            ManagedPolicyArns: 
+              - "arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess"
+
+    IAMRole12:
+        Type: "AWS::IAM::Role"
+        Properties:
+            Path: "/service-role/"
+            RoleName: "updateCanvas-role-gqwc8i0i"
+            AssumeRolePolicyDocument: "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Principal\":{\"Service\":\"lambda.amazonaws.com\"},\"Action\":\"sts:AssumeRole\"}]}"
+            MaxSessionDuration: 3600
+            ManagedPolicyArns: 
+              - "arn:aws:iam::aws:policy/AmazonSQSFullAccess"
+              - "arn:aws:iam::aws:policy/AmazonAPIGatewayInvokeFullAccess"
+
+    IAMRole13:
+        Type: "AWS::IAM::Role"
+        Properties:
+            Path: "/service-role/"
+            RoleName: "sendMessageToSQS-role-78ktmod4"
+            AssumeRolePolicyDocument: "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Principal\":{\"Service\":\"lambda.amazonaws.com\"},\"Action\":\"sts:AssumeRole\"}]}"
+            MaxSessionDuration: 3600
+            ManagedPolicyArns: 
+              - "arn:aws:iam::aws:policy/AmazonSQSFullAccess"
+              - "arn:aws:iam::aws:policy/AmazonAPIGatewayInvokeFullAccess"
+
+    IAMRole14:
+        Type: "AWS::IAM::Role"
+        Properties:
+            Path: "/service-role/"
+            RoleName: "moveFile-role-sz41g2bs"
+            AssumeRolePolicyDocument: "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Principal\":{\"Service\":\"lambda.amazonaws.com\"},\"Action\":\"sts:AssumeRole\"}]}"
+            MaxSessionDuration: 3600
+            ManagedPolicyArns: 
+              - "arn:aws:iam::aws:policy/AmazonSQSFullAccess"
+              - "arn:aws:iam::aws:policy/AmazonAPIGatewayInvokeFullAccess"
+    
+    IAMServiceLinkedRole:
+        Type: "AWS::IAM::ServiceLinkedRole"
+        Properties:
+            AWSServiceName: "ops.apigateway.amazonaws.com"
+            Description: "The Service Linked Role is used by Amazon API Gateway."
+
+    IAMServiceLinkedRole2:
+        Type: "AWS::IAM::ServiceLinkedRole"
+        Properties:
+            AWSServiceName: "dynamodb.application-autoscaling.amazonaws.com"
+
+    IAMServiceLinkedRole3:
+        Type: "AWS::IAM::ServiceLinkedRole"
+        Properties:
+            AWSServiceName: "elasticache.amazonaws.com"
+            Description: "This policy allows ElastiCache to manage AWS resources on your behalf as necessary for managing your cache."
+
+    IAMPolicy2:
+        Type: "AWS::IAM::Policy"
+        DependsOn: "IAMUser2"
+        Properties:
+            PolicyDocument: |
+                {
+                	"Version": "2012-10-17",
+                	"Statement": [
+                		{
+                			"Sid": "VisualEditor0",
+                			"Effect": "Allow",
+                			"Action": "profile:ListDomains",
+                			"Resource": "*"
+                		},
+                		{
+                		    "Sid": "VisualEditor1",
+                			"Effect": "Allow",
+                			"Action": "wisdom:ListAssistants",
+                			"Resource": "*"
+                		},
+                		{
+                		    "Sid": "VisualEditor2",
+                			"Effect": "Allow",
+                			"Action": "wisdom:ListKnowledgeBases",
+                			"Resource": "*"
+                		}
+                	]
+                }
+            Users: 
+              - "cloudformationGenerator"
+            PolicyName: "former2"
+
+    IAMAccessKey:
+        Type: "AWS::IAM::AccessKey"
+        DependsOn: "IAMUser"
+        Properties:
+            Status: "Active"
+            UserName: !Ref IAMGroup
+
+    IAMAccessKey2:
+        Type: "AWS::IAM::AccessKey"
+        DependsOn: "IAMUser"
+        Properties:
+            Status: "Active"
+            UserName: !Sub "${IAMGroup}2"
+
+    IAMAccessKey3:
+        Type: "AWS::IAM::AccessKey"
+        DependsOn: "IAMUser2"
+        Properties:
+            Status: "Active"
+            UserName: "cloudformationGenerator"
+
+    IAMVirtualMFADevice:
+        Type: "AWS::IAM::VirtualMFADevice"
+        DependsOn: "IAMUser"
+        Properties:
+            Users: 
+              - !Ref IAMUser
+
+    LambdaFunction6:
+        Type: "AWS::Lambda::Function"
+        Properties:
+            Description: ""
+            FunctionName: "moveFile"
+            Handler: "lambda_function.lambda_handler"
+            Architectures: 
+              - "x86_64"
+            MemorySize: 128
+            Role: !GetAtt IAMRole14.Arn
+            Runtime: "python3.8"
+            Timeout: 3
+            TracingConfig: 
+                Mode: "PassThrough"
+            EphemeralStorage: 
+                Size: 512
+            Code:
+                ZipFile: >
+                    import json
+                    import urllib.parse
+                    import boto3
+
+                    print('Loading function')
+
+                    s3 = boto3.client('s3')
+
+
+                    def lambda_handler(event, context):
+                        print("Received event: " + json.dumps(event, indent=2))
+
+                        # Get the object from the event and show its content type
+                        bucket = event['Records'][0]['s3']['bucket']['name']
+                        rawKey = event['Records'][0]['s3']['object']['key']
+                        key = urllib.parse.unquote_plus(event['Records'][0]['s3']['object']['key'], encoding='utf-8')
+                        try:
+                            response = s3.get_object(Bucket=bucket, Key=key)
+                            print("CONTENT TYPE: " + response['ContentType'])
+
+                            s3_2 = boto3.resource('s3')
+                            copy_source = { 'Bucket': bucket, 'Key': rawKey }
+                            dst = s3_2.Bucket('csc409outbucket0110')
+                            dst.copy(copy_source, rawKey.upper())
+
+                            print(bucket)
+                            print(rawKey.upper())
+                            return response['ContentType']
+                        except Exception as e:
+                            print(e)
+                            print('Error getting object {} from bucket {}. Make sure they exist and your bucket is in the same region as this function.'.format(key, bucket))
+                            raise e
+
+    LambdaFunction7:
+        Type: "AWS::Lambda::Function"
+        Properties:
+            Description: ""
+            FunctionName: !Sub "broadcast2"
+            Handler: "index.handler"
+            Architectures: 
+              - "x86_64"
+            MemorySize: 128
+            Role: !GetAtt IAMRole5.Arn
+            Runtime: "nodejs20.x"
+            Timeout: 3
+            TracingConfig: 
+                Mode: "PassThrough"
+            EphemeralStorage: 
+                Size: 512
+            Code:
+                ZipFile: >
+                    import * as AWS from "@aws-sdk/client-s3";
+
+                    const api = new AWS.ApiGatewayManagementApi({
+                    endpoint: 'https://sjdud7kfbc.execute-api.us-east-1.amazonaws.com/production/@connections'
+                    })
+
+
+                    exports.handler = async (event) => {
+                        console.log(event)
+
+                        const route = event.requestContext.routeKey
+                        const connectionId = event.requestContext.connectionId
+                        await replyToMessage("update", 'Pdab3fEIoAMCLxQ=')
+                        // switch (route) {
+                        //     case '$connect':
+                        //         console.log('Connection occurred')
+                        //         break
+                        //     case '$disconnect':
+                        //         console.log('Disconnection occurred')
+                        //         break
+                        //     case 'message':
+                        //         console.log('Received message:', event.requestContext.body)
+                                
+                        //         break
+                        //     default:
+                        //         console.log('Received unknown route:', route)
+                        // }
+
+                        return {
+                        statusCode: 200
+                        }
+                    }
+
+                    async function replyToMessage(response, connectionId) {
+                        const data = { message: response }
+                        const params = {
+                        ConnectionId: connectionId,
+                        Data: Buffer.from(JSON.stringify(data))
+                        }
+
+                        return api.postToConnection(params).promise()
+                    }
+
+    LambdaFunction8:
+        Type: "AWS::Lambda::Function"
+        Properties:
+            Description: ""
+            FunctionName: !Sub "broadcast3"
+            Handler: "index.handler"
+            Architectures: 
+              - "x86_64"
+            MemorySize: 128
+            Role: !GetAtt IAMRole7.Arn
+            Runtime: "nodejs14.x"
+            Timeout: 3
+            TracingConfig: 
+                Mode: "PassThrough"
+            EphemeralStorage: 
+                Size: 512
+            Code:
+                ZipFile: >
+                    const AWS = require('aws-sdk')
+                    // const axios = require('axios')
+
+
+
+
+                    exports.handler = async (event) => {
+                        console.log(event)
+                        const api = new AWS.ApiGatewayManagementApi({
+                        endpoint: 'https://sjdud7kfbc.execute-api.us-east-1.amazonaws.com/production/'
+                        })
+                        const time = event.eventTime
+                        
+                        const items = event.batch
+                        // replyToMessage("update1", "PdhUhfXPIAMCEQQ=")
+
+                    // Execute the scanAllItems function
+                    try {
+                        const result = await scanAllItems(items, time, api);
+                        console.log(result);
+                        return { statusCode: 200, body: result };
+                    } catch (error) {
+                        console.error('Error:', error);
+                        return { statusCode: 500, body: 'Internal Server Error' };
+                    }
+                    }
+
+                    async function replyToMessage(response, connectionId, api) {
+                        console.log(response, connectionId)
+                        const data = { message: response }
+                        const params = {
+                        ConnectionId: connectionId,
+                        Data: Buffer.from(JSON.stringify(data))
+                        }
+                        console.log(params)
+                        await api.postToConnection(params).promise()
+                    }
+                    async function scanAllItems(items, time, api){
+                    console.log(items)
+                    items.forEach((item) => {
+                        // Do something with each item (item is a DynamoDB attribute-value map)
+                        console.log('AIN:', item);
+                        console.log('hmm', JSON.stringify(item.connectionID));
+                        // replyToMessage("test", "PdhUhfXPIAMCEQQ=")
+                        console.log(time)
+                        replyToMessage(time, item.connectionID, api)
+                        replyToMessage("HI", item.connectionID, api)
+                    })
+                    }
+                    function getCurrentTime() {
+                    const now = new Date();
+                    const formattedTime = now.toISOString();
+                    return formattedTime;
+                    }
+
+    OpsWorksUserProfile:
+        Type: "AWS::OpsWorks::UserProfile"
+        DependsOn: "IAMUser2"
+        Properties:
+            AllowSelfManagement: false
+            IamUserArn: !Sub "arn:aws:iam::${AWS::AccountId}:user/cloudformationGenerator"
+            SshUsername: "cloudformationgenerator"
+
+    SQSQueue:
+        Type: "AWS::SQS::Queue"
+        Properties:
+            ContentBasedDeduplication: "true"
+            DelaySeconds: "0"
+            FifoQueue: "true"
+            MaximumMessageSize: "262144"
+            MessageRetentionPeriod: "345600"
+            ReceiveMessageWaitTimeSeconds: "0"
+            VisibilityTimeout: "3600"
+            QueueName: "canvasUpdates.fifo"
+            RedrivePolicy:
+                deadLetterTargetArn: !GetAtt SQSQueue2.Arn
+                maxReceiveCount: 3
+                
+
+
+    SQSQueue2:
+        Type: "AWS::SQS::Queue"
+        Properties:
+            ContentBasedDeduplication: "true"
+            DelaySeconds: "0"
+            FifoQueue: "true"
+            MaximumMessageSize: "262144"
+            MessageRetentionPeriod: "345600"
+            ReceiveMessageWaitTimeSeconds: "0"
+            VisibilityTimeout: "3600"
+            QueueName: "canvasUpdatesDQL.fifo"
+
+    SQSQueuePolicy:
+        Type: "AWS::SQS::QueuePolicy"
+        DependsOn: "SQSQueue"
+        Properties:
+            PolicyDocument: !Sub "{\"Version\":\"2012-10-17\",\"Id\":\"__default_policy_ID\",\"Statement\":[{\"Sid\":\"__owner_statement\",\"Effect\":\"Allow\",\"Principal\":{\"AWS\":\"arn:aws:iam::${AWS::AccountId}:root\"},\"Action\":\"SQS:*\",\"Resource\":\"${SQSQueue}\"},{\"Sid\":\"__sender_statement\",\"Effect\":\"Allow\",\"Principal\":{\"AWS\":\"arn:aws:iam::${AWS::AccountId}:root\"},\"Action\":\"SQS:SendMessage\",\"Resource\":\"${SQSQueue}\"},{\"Sid\":\"__receiver_statement\",\"Effect\":\"Allow\",\"Principal\":{\"AWS\":\"arn:aws:iam::${AWS::AccountId}:root\"},\"Action\":[\"SQS:ChangeMessageVisibility\",\"SQS:DeleteMessage\",\"SQS:ReceiveMessage\"],\"Resource\":\"${SQSQueue}\"}]}"
+            Queues: 
+              - !Sub "https://sqs.${AWS::Region}.amazonaws.com/${AWS::AccountId}/${SQSQueue.QueueName}"
+
+    SQSQueuePolicy2:
+        Type: "AWS::SQS::QueuePolicy"
+        DependsOn: "SQSQueue2"
+        Properties:
+            PolicyDocument: !Sub "{\"Version\":\"2012-10-17\",\"Id\":\"__default_policy_ID\",\"Statement\":[{\"Sid\":\"__owner_statement\",\"Effect\":\"Allow\",\"Principal\":{\"AWS\":\"arn:aws:iam::${AWS::AccountId}:root\"},\"Action\":\"SQS:*\",\"Resource\":\"${SQSQueue2}\"}]}"
+            Queues: 
+              - !Sub "https://sqs.${AWS::Region}.amazonaws.com/${AWS::AccountId}/${SQSQueue2.QueueName}"
+
+    IAMUser4:
+        Type: "AWS::IAM::User"
+        Properties:
+            Path: "/"
+            UserName: !Sub "${IAMGroup}2"
+            Groups: 
+              - !Ref IAMGroup
+            Tags: 
+              - 
+                Key: "AKIATWSDYPF5L7NT4QYC"
+                Value: "Second attempt"
+
+    LambdaPermission9:
+        Type: "AWS::Lambda::Permission"
+        Properties:
+            Action: "lambda:InvokeFunction"
+            FunctionName: !GetAtt LambdaFunction6.Arn
+            Principal: "s3.amazonaws.com"
+            SourceArn: "arn:aws:s3:::csc409inbucket0110"
+
+    ApiGatewayV2Api:
+        Type: "AWS::ApiGatewayV2::Api"
+        Properties:
+            Name: "R/place"
+            ApiKeySelectionExpression: "$request.header.x-api-key"
+            ProtocolType: "WEBSOCKET"
+            RouteSelectionExpression: "$request.body.action"
+            DisableExecuteApiEndpoint: false
+
+    ApiGatewayV2Deployment:
+        Type: "AWS::ApiGatewayV2::Deployment"
+        DependsOn: "ApiGatewayV2Route"
+        Properties:
+            ApiId: !Ref ApiGatewayV2Api
+            Description: "This first deployment was created by the console during API creation."
+
+    ApiGatewayV2Route:
+        Type: "AWS::ApiGatewayV2::Route"
+        DependsOn: "ApiGatewayV2Api"
+        Properties:
+            ApiId: !Ref ApiGatewayV2Api
+            ApiKeyRequired: false
+            AuthorizationType: "NONE"
+            RouteKey: !Sub "$dis${LambdaFunction2}"
+            Target: !Sub "integrations/${ApiGatewayV2Integration2}"
+
+    ApiGatewayV2Route2:
+        Type: "AWS::ApiGatewayV2::Route"
+        DependsOn: "ApiGatewayV2Api"
+        Properties:
+            ApiId: !Ref ApiGatewayV2Api
+            ApiKeyRequired: false
+            AuthorizationType: "NONE"
+            RouteKey: "update_canvas"
+            Target: !Sub "integrations/${ApiGatewayV2Integration3}"
+
+    ApiGatewayV2Route3:
+        Type: "AWS::ApiGatewayV2::Route"
+        DependsOn: "ApiGatewayV2Api"
+        Properties:
+            ApiId: !Ref ApiGatewayV2Api
+            ApiKeyRequired: false
+            AuthorizationType: "NONE"
+            RouteKey: !Sub "$${LambdaFunction2}"
+            Target: !Sub "integrations/${ApiGatewayV2Integration}"
+
+    ApiGatewayV2Integration:
+        Type: "AWS::ApiGatewayV2::Integration"
+        DependsOn: "ApiGatewayV2Api"
+        Properties:
+            ApiId: !Ref ApiGatewayV2Api
+            ConnectionType: "INTERNET"
+            IntegrationMethod: "POST"
+            IntegrationType: "AWS_PROXY"
+            IntegrationUri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${LambdaFunction2}/invocations"
+            PassthroughBehavior: "WHEN_NO_MATCH"
+            TimeoutInMillis: 29000
+            PayloadFormatVersion: "1.0"
+
+    ApiGatewayV2Integration2:
+        Type: "AWS::ApiGatewayV2::Integration"
+        DependsOn: "ApiGatewayV2Api"
+        Properties:
+            ApiId: !Ref ApiGatewayV2Api
+            ConnectionType: "INTERNET"
+            IntegrationMethod: "POST"
+            IntegrationType: "AWS_PROXY"
+            IntegrationUri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:dis${LambdaFunction2}/invocations"
+            PassthroughBehavior: "WHEN_NO_MATCH"
+            TimeoutInMillis: 29000
+            PayloadFormatVersion: "1.0"
+
+    ApiGatewayV2Integration3:
+        Type: "AWS::ApiGatewayV2::Integration"
+        DependsOn: "ApiGatewayV2Api"
+        Properties:
+            ApiId: !Ref ApiGatewayV2Api
+            ConnectionType: "INTERNET"
+            IntegrationMethod: "POST"
+            IntegrationType: "AWS_PROXY"
+            IntegrationUri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${LambdaFunction}/invocations"
+            PassthroughBehavior: "WHEN_NO_MATCH"
+            TimeoutInMillis: 29000
+            PayloadFormatVersion: "1.0"

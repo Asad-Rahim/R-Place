@@ -1,0 +1,13 @@
+version: '3'
+
+services:
+  myapp:
+    image: asapasad/place:latest
+    deploy:
+      replicas: 2
+      mode: replicated
+      restart_policy:
+        condition: on-failure
+    volumes:
+      - "/home/ec2-user/a3group23/docker/app/logs:/app/logs"  # Mount the local logs directory to the container
+      - "/home/ec2-user/config:/app/config"  # Mount the local logs directory to the container

@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en"> 
+	<head>
+		<meta charset="UTF-8" />
+                <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+                <meta http-equiv="Pragma" content="no-cache" />
+                <meta http-equiv="Expires" content="0" />
+
+		<title>r/place clone</title>
+
+		<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+		<script type="text/javascript">
+	
+			var socket;
+			var version;
+
+			$(function(){
+				// socket = new WebSocket("ws://cslinux.utm.utoronto.ca:8001");
+				// socket = new WebSocket("ws://localhost:8001");
+				socket = new WebSocket("wss://sjdud7kfbc.execute-api.us-east-1.amazonaws.com/production/");
+				socket.onopen = function (event) {
+					$('#sendButton').removeAttr('disabled');
+					console.log("Connected to websocket");
+				};
+				socket.onclose = function (event) {
+					console.log("Disconnected from websocket");
+					alert("closed code:" + event.code + " reason:" +event.reason + " wasClean:"+event.wasClean);
+				};
+				socket.onmessage = function (event) {
+					console.log("Refreshing canvas");
+					document.getElementById("myIMG").src = "https://d1zgigayd72syg.cloudfront.net/images/canvas.png?version="+ event.data;
+				}
+
+				$('#setButton').click(function (event) {
+					var message = { 
+						"action": "update_canvas",
+						'x': $('#x').val(), 
+						'y': $('#y').val(), 
+						'color':$('#color').val()
+					};
+					console.log("Sending request to update pixel "+$('#x').val()+","+$('#y').val()+ " with "+ $('#color').val());
+					socket.send(JSON.stringify(message));
+  					event.preventDefault();
+				});
+				
+			});
+		</script>
+		<style>
+                        body {
+                                text-align: center;
+                                align: center;
+                                overflow: auto;
+                                margin: 0px;
+                                padding: 0px;
+                        }
+                        img {
+							border: 1px solid black;
+							}
+                        input[type=number]{ width: 3em; }
+                </style>
+	</head>
+	<body>
+		<h1>r/place clone</h1>
+		<img src="https://d1zgigayd72syg.cloudfront.net/images/canvas.png" 
+		alt="canvas" id="myIMG"/>
+		<form id="setForm">
+                        (<input type="number" id="x" placeholder="x" min="0" max="250">,
+                        <input type="number" id="y" placeholder="y" min="0" max="250">)
+                        &nbsp; &nbsp; &nbsp;
+                        (<select id="color" name="color">
+							<option value="white">white</option>
+							<option value="red">red</option>
+							<option value="lime">lime</option>
+							<option value="blue">blue</option>
+							<option value="yellow">yellow</option>
+							<option value="magenta">magenta</option>
+							<option value="cyan">cyan</option>
+							<option value="maroon">maroon</option>
+							<option value="green">green</option>
+							<option value="navy">navy</option>
+							<option value="olive">olive</option>
+							<option value="purple">purple</option>
+							<option value="teal">teal</option>
+							<option value="silver">silver</option>
+							<option value="gray">gray</option>
+							<option value="black">black</option>
+						  </select>)
+                        &nbsp; &nbsp; &nbsp;
+                        <button type="button" id="setButton">set</button>
+                </form>
+	</body>
+</html>
+
